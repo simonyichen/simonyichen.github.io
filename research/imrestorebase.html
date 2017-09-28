@@ -1,0 +1,184 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<title>图像复原算法基础</title>
+<meta name="keywords" content="图像处理，图像复原，维纳滤波，逆滤波，小波变换，盲反卷积" />
+<meta name="description" content="图像复原中用到的逆滤波、维纳滤波、小波变换、盲反卷积等算法" />
+<link rel="stylesheet" href="../webstyle.css" type="text/css" />
+<!-- math -->
+<script type="text/javascript" src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+<script type="text/x-mathjax-config">
+    MathJax.Hub.Config({
+        TeX: { equationNumbers: {autoNumber: "all"} },
+        "HTML-CSS": {linebreaks: {automatic: true}},
+        SVG: {linebreaks: {automatic: true}},
+		tex2jax: {inlineMath: [['$','$'], ['\\(','\\)']]},
+		displayMath: [ ["$$","$$"], ["\\[", "\\]"] ]
+    });
+</script>
+<!-- light box -->
+<link rel="stylesheet" href="../css/lightbox.css">
+<script src="../js/jquery-1.11.0.min.js"></script>
+<script src="../js/lightbox.js"></script>
+<!-- customize labels of htmlcommentbox.com -->
+<script src="../js/comment.js"></script>
+<script language="javascript" type="text/javascript">
+function clearText(field)
+{
+    if (field.defaultValue == field.value) field.value = '';
+    else if (field.value == '') field.value = field.defaultValue;
+}
+</script>
+</head>
+<body>
+<div id="container">
+	<div id="header_wrapper">
+	<!--  Free Web Templates by TemplateMo.com  -->
+	  <div id="header">
+		
+		<div id="site_logo"></div>
+			
+			<div id="menu">
+				<div id="menu_left"></div>
+				<ul>
+					  <li><a href="../index.html">Home</a></li>
+					  <li><a href="../projects.html">Project</a></li>
+					  <li><a href="../research.html" class="current">Research</a></li>
+					  <li><a href="../blog.html">Life</a></li>
+					  <li><a href="../about.html" class="last">About</a></li>
+				</ul>    	
+			</div> <!-- end of menu -->
+		
+		</div>  <!-- end of header -->
+	</div> <!-- end of header wrapper -->
+
+	<div id="content_wrapper">
+		<div id="content">
+		
+			<div id="column_w600">
+				
+				<div class="header_02">图像复原算法基础</div>
+				
+				<p class="em_text">与图像增强类似，图像复原的最终目的是改善给定的图像，尽管图像增强和复原有交叉的邻域，但图像增强主要是一个主观的过程，而图像复原则是一个客观的过程。图像复原一般是基于某种先验的退化模型，对退化后的图像进行逆向操作，从而复原出原图像。</p>
+
+				<div class="margin_bottom_10"></div>
+				<div class="header_05">退化和复原模型</div>
+				<div class="margin_bottom_10"></div>
+				
+				<p>在进一步讨论图像复原之前，先来看一下图像退化模型，对于一幅二维图像来说，空间域的退化图像可以用这个方程表示：$$g(x,y) = h(x,y) * f(x,y) + \eta (x,y).$$</p>
+				<p>其中$g(x,y)$为退化后的图像，$f(x,y)$为输入的原图像，$h(x,y)$是退化函数的空间描述，$*$代表空间卷积。将空间域的卷积变换到频率域的乘积，可以把上式的模型写成等价的频率域下的描述，大写字母表示上式中相应项的傅里叶变换：$$G(u,v) = H(u,v)F(u,v) + N(u,v)$$</p>
+				<p>可以用一幅图来表示图像退化/复原这一过程：</p>
+				<div style="text-align:center">
+					<a href="images/imrestore/model.jpg" data-lightbox="image-set" data-title="图像退化/复原过程模型"><img src="images/imrestore/model.jpg" width="500"/></a>
+				</div>
+				<p>复原的过程就是图像退化的逆过程，我们希望最终估计的结果$\hat f(x,y)$尽可能接近原始图像$f(x,y)$。获得 $H$ 和 $\eta$ 的信息越多，两者就越接近。</p>
+				
+				<p>常见的图像复原包括去模糊、去雾等，去模糊在这几年研究成果非常多，也获得了许多非常好的结果，在本站的“有趣的图像处理算法”一文中列举了一个算法效果非常好的算法。在这里不对高级的算法做过多介绍，只以常见的图像模糊为例，讨论最基本的几种算法。</p>
+				
+				<p>对于一个模糊函数来说，既可以把它看成是某种类型的低通滤波器，又可以把它看成是点扩散函数（point spread function，简称PSF）。一个像素点经过该函数之后会扩散到周围的区域，从而影响其他的像素，最后导致的结果是图像变得模糊。</p>
+				<div style="text-align:center">
+					<a href="images/imrestore/Algorithm_bw_filter.png" data-lightbox="image-set" data-title="频率域的巴特沃斯低通滤波器"><img src="images/imrestore/Algorithm_bw_filter.png" height="220"/></a>
+					<span style="margin-right:30px;"></span>
+					<a href="images/imrestore/psf.png" data-lightbox="image-set" data-title="点扩散函数"><img src="images/imrestore/psf.png" height="220"/></a>
+				</div>
+				<p>上图中，左边是将巴特沃斯低通滤波器经过2D FFT变换之后的结果，右边是点扩散函数示意图。</p>
+				
+				<div class="margin_bottom_10"></div>
+				<div class="header_05">逆滤波器</div>
+				<div class="margin_bottom_10"></div>
+				<p>如果已知图像是因为低通滤波器导致的模糊，要复原图像很容易想到求低通滤波器的逆，并该逆作用到模糊图像上，这就称为逆滤波器。将频域下的低通滤波器用B(u,v)表示，那么高通滤波器可以表示为：$${B^{-1}}(u,v) = \left\{ {\matrix{{{1 \over {B(u,v)}}\quad if{1 \over {B(u,v)}} < \gamma }  \cr 
+				{\gamma \quad  \quad \quad else \quad \quad}  \cr } } \right.\label{ref1}$$</p>
+				<p>因为低通滤波器中有许多0和接近于0的系数，因此设定$\gamma$ 这一阈值，防止高通滤波器中出现过大的数。在本文中，我们采用如下空域的低通滤波器来模糊图像：$$ h = {1 \over {16}}\left( {\matrix{
+				   1 & 1 & 1 & 1  \cr 
+				   1 & 1 & 1 & 1  \cr 
+				   1 & 1 & 1 & 1  \cr 
+				   1 & 1 & 1 & 1  \cr } } \right), \nonumber$$</p>
+				   <p>按照公式(\ref{ref1})来计算逆滤波器用来恢复原来的图像。下图中，左边是原图，右边是恢复的结果（$\gamma$=5000）。可以看到结果图跟原图非常接近，计算出来的MSE=3.8639。</p>
+				<div style="text-align:center">
+					<a href="images/imrestore/orig.jpg" data-lightbox="image-set" data-title="原图"><img src="images/imrestore/orig.jpg" height="190"/></a>
+					<a href="images/imrestore/blur.jpg" data-lightbox="image-set" data-title="模糊图像"><img src="images/imrestore/blur.jpg" height="190"/></a>
+					<a href="images/imrestore/blur_res.jpg" data-lightbox="image-set" data-title="逆滤波结果"><img src="images/imrestore/blur_res.jpg" height="190"/></a>
+				</div>
+				<div class="margin_bottom_10"></div>
+				<p>高通滤波器的优势在于能够增强细节，对图像中变化较快的部分非常敏感，比如图像的边缘。但是如果图像中有噪声，高通滤波器同样也会增大这些噪声，最后使得结果难以接受。下面的例子中，在原有的模糊图像上加上了随机的噪声，下图最右边是进行逆变换的结果（$\gamma$=5）：</p>
+				<div style="text-align:center">
+					<a href="images/imrestore/orig.jpg" data-lightbox="image-set" data-title="原图"><img src="images/imrestore/orig.jpg" height="190"/></a>
+					<a href="images/imrestore/blur_noise.jpg" data-lightbox="image-set" data-title="模糊+噪声图像"><img src="images/imrestore/blur_noise.jpg" height="190"/></a>
+					<a href="images/imrestore/blur_noise_res.jpg" data-lightbox="image-set" data-title="逆滤波结果"><img src="images/imrestore/blur_noise_res.jpg" height="190"/></a>
+				</div>
+				<div class="margin_bottom_10"></div>
+				<p>这里计算出来的MSE=2050，虽然图像的边缘变得锐利了，但是图像噪声也放大了。图像噪声越多，为了不过于放大噪声，$\gamma$ 值就要越小，但是$\gamma$ 值越小，去模糊的效果也越差。</p>
+				<p>针对这一情况，另外一种解决方案是迭代求解：首先根据噪声图像来获得原图像的初始估计，然后，根据迭代方程来更新对原图像的估计。可以用方程表达如下：$${\hat f_0}(x,y) = \lambda g(x,y) \label{ref2},$$ $${\hat f_{k + 1}}(x,y) = {\hat f_k}(x,y) + \lambda (g(x,y) - {\hat f_k}(x,y) * b(x,y))\label{ref3}$$</p>
+				<p>(\ref{ref2}) 式中，${\hat f_0}(x,y)$是对原始图像的初始估计。当估计的值 ${\hat f_k}$ 与原图相似时，${\hat f_k}$ 与 $b(x,y)$ 的卷积的结果将会与 $g(x,y)$ 接近，使得 (\ref{ref3}) 式右边第二项接近于0，从而实现收敛。$\lambda$控制收敛速度。将上面两式在频率域表示为：$${{\hat F}_0}(x,y) = \lambda G(x,y),$$ $${\hat F_{k + 1}}(u,v) = {\hat F_k}(u,v) + \lambda (G(u,v) - {\hat F_k}(x,y)B(x,y))$$</p>
+				
+				<p>解出上式中的 ${\hat F_k}(u,v)$ 可得：$$\displaylines{
+				{{\hat F}_{k + 1}}(u,v) = \lambda (G(u,v)[1 + (1 - \lambda B(u,v) +  \cdots  + {(1 - \lambda B(u,v))^k}] \cr 
+				= {{G(u,v)} \over {B(u,v)}}[1 - {(1 - \lambda B(u,v))^{k + 1}}] \cr} $$</p>
+				<p>当$k$趋向无穷大时，${(1 - \lambda B(u,v))^{k + 1}}$趋向于0，所获得的结果就与逆滤波器一样了。在实现该滤波器的时候，$\lambda$ 的取值需满足$|1 - \lambda B(u,v)|<1 $。我们取$\lambda = 0.1$，迭代150次，结果如下：</p>
+				
+				<div style="text-align:center">
+					<a href="images/imrestore/orig.jpg" data-lightbox="image-set" data-title="原图"><img src="images/imrestore/orig.jpg" height="190"/></a>
+					<a href="images/imrestore/blur_noise.jpg" data-lightbox="image-set" data-title="模糊+噪声图像"><img src="images/imrestore/blur_noise.jpg" height="190"/></a>
+					<a href="images/imrestore/deblur_noise_ite_inv_res.jpg" data-lightbox="image-set" data-title="迭代逆滤波结果"><img src="images/imrestore/deblur_noise_ite_inv_res.jpg" height="190"/></a>
+				</div>
+				<div class="margin_bottom_10"></div>
+				<p>上图中，同样最左边是原图，中间是对原图进行模糊，同时加上方差为10的高斯噪声，最右边是对中间图像进行迭代滤波器获得的结果，其中MSE=1171，比直接逆滤波要小。因此，在有噪声的情况下，迭代逆滤波的结果是要好于直接逆滤波的。</p>
+				
+				<div class="margin_bottom_10"></div>
+				<div class="header_05">维纳滤波</div>
+				<div class="margin_bottom_10"></div>
+				
+				<p>常见的图像复原包括去模糊、去雾等。</p>
+				
+				<p></p>
+				
+				
+				<div class="margin_bottom_10"></div>
+				<div class="header_05">小波复原</div>
+				<div class="margin_bottom_10"></div>
+				
+				
+				<div class="margin_bottom_10"></div>
+				<div class="header_05">盲反卷积</div>
+				<div class="margin_bottom_10"></div>
+				
+				<br/>
+				<div class="header_05">参考文献</div>
+				<div class="margin_bottom_10"></div>
+				<p>[1] Gonzalez R C, Woods R E. 冈萨雷斯数字图像处理[J]. 2003.</p>
+				<p>[2] <a href="http://www.owlnet.rice.edu/~elec539/Projects99/BACH/proj2/intro.html" target="_blank">http://www.owlnet.rice.edu/~elec539/Projects99/BACH/proj2/intro.html</a></p>
+				<p>[3] <a href="http://homepages.inf.ed.ac.uk/rbf/CVonline/LOCAL_COPIES/VELDHUIZEN/node15.html" target="_blank">http://homepages.inf.ed.ac.uk/rbf/CVonline/LOCAL_COPIES/VELDHUIZEN/
+				node15.html</a></p>
+				<p>[4] <a href="http://en.wikipedia.org/wiki/Point_spread_function" target="_blank">http://en.wikipedia.org/wiki/Point_spread_function</a></p>
+				
+				<br/>
+				<p style="text-indent:0;text-align:right">Last update: <!-- #BeginDate format:IS1 -->2014-11-20<!-- #EndDate --></p>
+				
+				<!-- begin htmlcommentbox.com -->
+				<div id="HCB_comment_box"></div>
+				<script type="text/javascript" id="hcb"> /*<!--*/ if(!window.hcb_user){hcb_user={};} (function(){var s=document.createElement("script"), l=(hcb_user.PAGE || ""+window.location), h="//www.htmlcommentbox.com";s.setAttribute("type","text/javascript");s.setAttribute("src", h+"/jread?page="+encodeURIComponent(l).replace("+","%2B")+"&mod=%241%24wq1rdBcg%24whFr%2FAI4JbJajD84P9cq7%2F"+"&opts=16862&num=10");if (typeof s!="undefined") document.getElementsByTagName("head")[0].appendChild(s);})(); /*-->*/ </script>
+				<!-- end htmlcommentbox.com -->
+				
+				<div class="cleaner"></div>
+			</div>
+			
+			<!--文章列表-->
+			<script src="../js/researchlist.js"></script>
+		
+			<div class="cleaner"></div>
+		</div> <!-- end of content -->
+	</div> <!-- end of content wrapper -->
+</div> <!-- end of container -->
+
+<div id="footer_wrapper">
+
+	<div id="footer">
+    	<script src="../js/footer.js"></script>
+        <div class="cleaner"></div>
+    </div> <!-- end of footer -->
+    <!--  Free CSS Templates by TemplateMo.com  -->
+</div> <!-- end of footer -->
+        
+    </body>
+</html>
